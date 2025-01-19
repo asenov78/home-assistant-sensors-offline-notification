@@ -1,6 +1,6 @@
 blueprint:
   name: Zigbee2MQTT Sensors Offline Notification
-  description: |
+  description:" |
     # Zigbee2MQTT Sensors Offline Notification
     **Version: 1.0**
     
@@ -29,7 +29,7 @@ blueprint:
     - *Sensors:* The Zigbee2MQTT sensors to monitor.
     - *Notification Service:* The service to use for sending notifications.
     
-    ---
+    ---"
   domain: automation
   input:
     trigger_sensor:
