@@ -1,26 +1,36 @@
 blueprint:
   name: Zigbee2MQTT Sensors Offline Notification
   description: |
-    # Zigbee2MQTT Sensors Offline Notification
-    **Version: 1.0**
-
-    This blueprint monitors Zigbee2MQTT sensors and notifies you when any sensor goes offline. Notifications are sent at specified intervals to avoid spamming.
-
-    **Features:**
-    - Monitor multiple Zigbee2MQTT sensors.
-    - Send notifications when a sensor is offline.
-    - Set a custom time interval for notifications.
-    - Supports any Home Assistant notification service.
-
-    **How it works:**
-    - Select the sensors you want to monitor.
-    - Choose a notification service (e.g., mobile app, email, etc.).
-    - Set the notification interval (default is 30 minutes).
-    - Get notified only if there are offline sensors.
-
-    For community support or updates: [Click Here](https://community.home-assistant.io/).
-
-  domain: automation
+    # Zigbee2MQTT Sensors Offline Notification\n
+    **Version: 1.0**\n
+    
+    This blueprint monitors the online status of Zigbee2MQTT sensors connected to your Home Assistant.\n
+    If any sensor goes offline, the automation sends a notification to inform you.\n
+    
+    **Features:**\n
+    - Monitors the status of selected Zigbee2MQTT sensors.\n
+    - Sends notifications at specified intervals to avoid excessive alerts.\n
+    - Allows you to add or remove sensors dynamically.\n
+    - Supports various notification platforms, including the Home Assistant app, email, or other messaging services.\n
+    
+    **Automation Process:**\n
+    - The automation checks the `availability` attribute of each sensor.\n
+    - If a sensor is offline, a notification is sent with the sensor's name.\n
+    - Notifications are throttled based on the configured time interval.\n
+    
+    **Setup Instructions:**\n
+    1. Select the Zigbee2MQTT sensors you want to monitor.\n
+    2. Choose the notification service (e.g., mobile push, email).\n
+    3. Set the interval for notification reminders.\n
+    
+    **Need help?** Visit the Home Assistant Community for support: [Click Here](https://community.home-assistant.io/)\n
+    
+    **Required Inputs:**\n
+    - *Sensors:* The Zigbee2MQTT sensors to monitor.\n
+    - *Notification Service:* The service to use for notifications.\n
+    
+    ---\n
+ domain: automation
   input:
     sensors:
       name: Sensors to Monitor *
