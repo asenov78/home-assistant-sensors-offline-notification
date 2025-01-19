@@ -1,50 +1,23 @@
 blueprint:
   name: Zigbee2MQTT Sensors Offline Notification
-  description: " |
-    # Zigbee2MQTT Sensors Offline Notification
-    **Version: 1.0**
-    
-    This blueprint monitors the online status of Zigbee2MQTT sensors connected to your Home Assistant.
-    If any sensor goes offline, the automation sends a notification to inform you.
-    
-    **Features:**
-    - Monitors the status of selected Zigbee2MQTT sensors.
-    - Sends notifications at specified intervals to avoid excessive alerts.
-    - Allows you to add or remove sensors dynamically.
-    - Supports various notification platforms, including the Home Assistant app, email, or other messaging services.
-    
-    **Automation Process:**
-    - The automation checks the `availability` attribute of each sensor.
-    - If a sensor is offline, a notification is sent with the sensor's name.
-    - Notifications are throttled based on the configured time interval.
-    
-    **Setup Instructions:**
-    1. Select the Zigbee2MQTT sensors you want to monitor.
-    2. Choose the notification service (e.g., mobile push, email).
-    3. Set the interval for notification reminders.
-    
-    **Need help?** Visit the Home Assistant Community for support: [Click Here](https://community.home-assistant.io/)
-    
-    **Required Inputs:**
-    - *Sensors:* The Zigbee2MQTT sensors to monitor.
-    - *Notification Service:* The service to use for sending notifications."
+  description: "This blueprint monitors the online status of Zigbee2MQTT sensors connected to your Home Assistant. If any sensor goes offline, the automation sends a notification to inform you. You can monitor multiple sensors and adjust the notification interval."
   domain: automation
   input:
     trigger_sensor:
       name: Trigger Sensor
-      description: The sensor to monitor for offline status.
+      description: "The sensor to monitor for offline status."
       selector:
         entity:
           domain: sensor
     notification_service:
       name: Notification Service
-      description: The service to use for sending notifications.
+      description: "The service to use for sending notifications."
       selector:
         entity:
           domain: notify
     notify_interval:
       name: Notification Interval
-      description: How often to notify if a sensor is offline.
+      description: "How often to notify if a sensor is offline."
       default: 60
       selector:
         number:
@@ -55,13 +28,13 @@ blueprint:
           step: 1
     include_sensors:
       name: Sensors to Monitor
-      description: The list of sensors to monitor for offline status.
+      description: "The list of sensors to monitor for offline status."
       selector:
         target:
           entity:
             domain: sensor
           multiple: true
-  source_url: https://github.com/yourusername/zigbee-sensors-offline-notification
+  source_url: "https://github.com/yourusername/zigbee-sensors-offline-notification"
 mode: restart
 max_exceeded: silent
 variables:
