@@ -1,85 +1,85 @@
 blueprint:
   name: Zigbee2MQTT Sensors Offline Notification
   description: |
-    # Zigbee2MQTT Sensors Offline Notification\n
-    **Version: 1.0**\n
+    # Zigbee2MQTT Sensors Offline Notification
+    **Version: 1.0**
     
-    This blueprint monitors the online status of Zigbee2MQTT sensors connected to your Home Assistant.\n
-    If any sensor goes offline, the automation sends a notification to inform you.\n
+    This blueprint monitors the online status of Zigbee2MQTT sensors connected to your Home Assistant.
+    If any sensor goes offline, the automation sends a notification to inform you.
     
-    **Features:**\n
-    - Monitors the status of selected Zigbee2MQTT sensors.\n
-    - Sends notifications at specified intervals to avoid excessive alerts.\n
-    - Allows you to add or remove sensors dynamically.\n
-    - Supports various notification platforms, including the Home Assistant app, email, or other messaging services.\n
+    **Features:**
+    - Monitors the status of selected Zigbee2MQTT sensors.
+    - Sends notifications at specified intervals to avoid excessive alerts.
+    - Allows you to add or remove sensors dynamically.
+    - Supports various notification platforms, including the Home Assistant app, email, or other messaging services.
     
-    **Automation Process:**\n
-    - The automation checks the `availability` attribute of each sensor.\n
-    - If a sensor is offline, a notification is sent with the sensor's name.\n
-    - Notifications are throttled based on the configured time interval.\n
+    **Automation Process:**
+    - The automation checks the `availability` attribute of each sensor.
+    - If a sensor is offline, a notification is sent with the sensor's name.
+    - Notifications are throttled based on the configured time interval.
     
-    **Setup Instructions:**\n
-    1. Select the Zigbee2MQTT sensors you want to monitor.\n
-    2. Choose the notification service (e.g., mobile push, email).\n
-    3. Set the interval for notification reminders.\n
+    **Setup Instructions:**
+    1. Select the Zigbee2MQTT sensors you want to monitor.
+    2. Choose the notification service (e.g., mobile push, email).
+    3. Set the interval for notification reminders.
     
-    **Need help?** Visit the Home Assistant Community for support: [Click Here](https://community.home-assistant.io/)\n
+    **Need help?** Visit the Home Assistant Community for support: [Click Here](https://community.home-assistant.io/)
     
-    **Required Inputs:**\n
-    - *Sensors:* The Zigbee2MQTT sensors to monitor.\n
-    - *Notification Service:* The service to use for notifications.\n
+    **Required Inputs:**
+    - *Sensors:* The Zigbee2MQTT sensors to monitor.
+    - *Notification Service:* The service to use for sending notifications.
     
-    ---\n
- domain: automation
+    ---
+  domain: automation
   input:
-    sensors:
-      name: Sensors to Monitor *
-      description: Select the Zigbee2MQTT sensors you want to monitor.
+    trigger_sensor:
+      name: Trigger Sensor
+      description: The sensor to monitor for offline status.
       selector:
         entity:
-          domain: binary_sensor
-          integration: mqtt
-          multiple: true
-    notify_service:
-      name: Notification Service *
-      description: Select the notification service to use for alerts.
+          domain: sensor
+    notification_service:
+      name: Notification Service
+      description: The service to use for sending notifications.
       selector:
-        service: notify
-    notification_interval:
+        entity:
+          domain: notify
+    notify_interval:
       name: Notification Interval
-      description: Set the interval (in minutes) for notifications.
-      default: 30
+      description: How often to notify if a sensor is offline.
+      default: 60
       selector:
         number:
           min: 1
           max: 1440
           unit_of_measurement: minutes
           mode: slider
-
-  source_url: https://github.com/<your-username>/home-assistant-blueprints
-
+          step: 1
+    include_sensors:
+      name: Sensors to Monitor
+      description: The list of sensors to monitor for offline status.
+      selector:
+        target:
+          entity:
+            domain: sensor
+          multiple: true
+  source_url: https://github.com/yourusername/zigbee-sensors-offline-notification
 mode: restart
 max_exceeded: silent
 variables:
-  sensors: !input sensors
-  notify_service: !input notify_service
-  interval: !input notification_interval
-
+  trigger_sensor: !input trigger_sensor
+  notification_service: !input notification_service
+  notify_interval: !input notify_interval
+  include_sensors: !input include_sensors
 trigger:
-  - platform: time_pattern
-    minutes: "/{{ interval }}"
-
-condition:
-  - condition: template
-    value_template: >
-      {% set offline_sensors = sensors | select('is_off', states) | list %}
-      {{ offline_sensors | length > 0 }}
-
+  - platform: state
+    entity_id: !input trigger_sensor
+    to: 'unavailable'
+    for:
+      minutes: !input notify_interval
+condition: []
 action:
-  - variables:
-      offline_sensors: >
-        {{ sensors | select('is_off', states) | map(attribute='name') | list | join(', ') }}
-  - service: !input notify_service
+  - service: !input notification_service
     data:
-      message: >
-        The following Zigbee2MQTT sensors are offline: {{ offline_sensors }}
+      message: "The Zigbee2MQTT sensor {{ trigger.to_state.entity_id }} is offline!"
+      title: "Zigbee Sensor Offline"
