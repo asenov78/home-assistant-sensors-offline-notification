@@ -1,31 +1,55 @@
 blueprint:
-  name: Sensor Offline Notification
-  description: Notify when Zigbee2MQTT sensors go offline at a specific interval.
+  name: Zigbee2MQTT Sensors Offline Notification
+  description: |
+    # Zigbee2MQTT Sensors Offline Notification
+    **Version: 1.0**
+
+    This blueprint monitors Zigbee2MQTT sensors and notifies you when any sensor goes offline. Notifications are sent at specified intervals to avoid spamming.
+
+    **Features:**
+    - Monitor multiple Zigbee2MQTT sensors.
+    - Send notifications when a sensor is offline.
+    - Set a custom time interval for notifications.
+    - Supports any Home Assistant notification service.
+
+    **How it works:**
+    - Select the sensors you want to monitor.
+    - Choose a notification service (e.g., mobile app, email, etc.).
+    - Set the notification interval (default is 30 minutes).
+    - Get notified only if there are offline sensors.
+
+    For community support or updates: [Click Here](https://community.home-assistant.io/).
+
   domain: automation
   input:
     sensors:
-      name: Sensors
-      description: List of sensors to monitor.
+      name: Sensors to Monitor *
+      description: Select the Zigbee2MQTT sensors you want to monitor.
       selector:
         entity:
           domain: binary_sensor
           integration: mqtt
           multiple: true
     notify_service:
-      name: Notify Service
-      description: The notification service to use.
+      name: Notification Service *
+      description: Select the notification service to use for alerts.
       selector:
         service: notify
     notification_interval:
       name: Notification Interval
-      description: Time interval for sending notifications (in minutes).
+      description: Set the interval (in minutes) for notifications.
       default: 30
       selector:
         number:
           min: 1
           max: 1440
           unit_of_measurement: minutes
+          mode: slider
 
+  source_url: https://github.com/<your-username>/home-assistant-blueprints
+
+mode: restart
+max_exceeded: silent
 variables:
   sensors: !input sensors
   notify_service: !input notify_service
@@ -48,4 +72,4 @@ action:
   - service: !input notify_service
     data:
       message: >
-        The following sensors are offline: {{ offline_sensors }}
+        The following Zigbee2MQTT sensors are offline: {{ offline_sensors }}
