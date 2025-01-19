@@ -1,0 +1,51 @@
+blueprint:
+  name: Sensor Offline Notification
+  description: Notify when Zigbee2MQTT sensors go offline at a specific interval.
+  domain: automation
+  input:
+    sensors:
+      name: Sensors
+      description: List of sensors to monitor.
+      selector:
+        entity:
+          domain: binary_sensor
+          integration: mqtt
+          multiple: true
+    notify_service:
+      name: Notify Service
+      description: The notification service to use.
+      selector:
+        service: notify
+    notification_interval:
+      name: Notification Interval
+      description: Time interval for sending notifications (in minutes).
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: minutes
+
+variables:
+  sensors: !input sensors
+  notify_service: !input notify_service
+  interval: !input notification_interval
+
+trigger:
+  - platform: time_pattern
+    minutes: "/{{ interval }}"
+
+condition:
+  - condition: template
+    value_template: >
+      {% set offline_sensors = sensors | select('is_off', states) | list %}
+      {{ offline_sensors | length > 0 }}
+
+action:
+  - variables:
+      offline_sensors: >
+        {{ sensors | select('is_off', states) | map(attribute='name') | list | join(', ') }}
+  - service: !input notify_service
+    data:
+      message: >
+        The following sensors are offline: {{ offline_sensors }}
