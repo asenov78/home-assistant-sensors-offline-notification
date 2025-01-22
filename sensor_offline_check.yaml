@@ -79,8 +79,10 @@ variables:
   repeat_notification: !input repeat_notification
 
 trigger:
-  - platform: time_pattern
-    minutes: "30"
+  - platform: time
+    at: "*:00:00"  # Every hour
+  - platform: time
+    at: "*:30:00"  # Every half hour
   - platform: event
     event_type: state_changed
     enabled: "{{ battery_warning }}"
