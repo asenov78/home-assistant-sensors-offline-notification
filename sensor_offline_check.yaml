@@ -1,56 +1,281 @@
 blueprint:
-  name: Zigbee2MQTT Sensors Offline Notification
-  description: "This blueprint monitors the online status of Zigbee2MQTT sensors connected to your Home Assistant. If any sensor goes offline, the automation sends a notification to inform you. You can monitor multiple sensors and adjust the notification interval."
+  name: Multi-Integration Offline Device Notification
+  description: Notifies when devices go offline across Zigbee2MQTT, Z-Wave JS, and ZHA integrations
   domain: automation
   input:
-    trigger_sensor:
-      name: Trigger Sensor
-      description: "The sensor to monitor for offline status."
-      selector:
-        entity:
-          domain: sensor
-    notification_service:
-      name: Notification Service
-      description: "The service to use for sending notifications."
-      selector:
-        entity:
-          domain: notify
     notify_interval:
       name: Notification Interval
-      description: "How often to notify if a sensor is offline."
-      default: 60
+      description: How often to check for offline devices (in minutes)
+      default: 30
       selector:
         number:
           min: 1
           max: 1440
           unit_of_measurement: minutes
-          mode: slider
-          step: 1
-    include_sensors:
-      name: Sensors to Monitor
-      description: "The list of sensors to monitor for offline status."
+    include_devices:
+      name: Notification Devices
+      description: List of mobile devices to notify
       selector:
-        target:
-          entity:
-            domain: sensor
+        object:
+    custom_message:
+      name: Custom Message
+      description: Custom message for notifications. Use {{device_name}} and {{offline_duration}} as placeholders.
+      default: "Device {{device_name}} is offline for {{offline_duration}}"
+      selector:
+        text:
+    excluded_devices:
+      name: Excluded Devices
+      description: List of devices to exclude from monitoring
+      default: []
+      selector:
+        entity:
           multiple: true
-  source_url: "https://github.com/yourusername/zigbee-sensors-offline-notification"
+    battery_warning:
+      name: Enable Battery Warnings
+      description: Enable notifications for low battery devices
+      default: true
+      selector:
+        boolean:
+    battery_threshold:
+      name: Battery Warning Threshold
+      description: Battery percentage threshold for warnings
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+    notification_quiet_time:
+      name: Quiet Hours
+      description: Time period during which notifications are suppressed (HH:MM-HH:MM)
+      default: "23:00-07:00"
+      selector:
+        text:
+    repeat_notification:
+      name: Repeat Notifications
+      description: How often to repeat notifications for devices that remain offline (in hours, 0 to disable)
+      default: 24
+      selector:
+        number:
+          min: 0
+          max: 72
+          unit_of_measurement: hours
+
 mode: restart
 max_exceeded: silent
+
+trigger_variables:
+  quiet_start: "{{ notification_quiet_time.split('-')[0] }}"
+  quiet_end: "{{ notification_quiet_time.split('-')[1] }}"
+
 variables:
-  trigger_sensor: !input trigger_sensor
-  notification_service: !input notification_service
   notify_interval: !input notify_interval
-  include_sensors: !input include_sensors
+  include_devices: !input include_devices
+  custom_message: !input custom_message
+  excluded_devices: !input excluded_devices
+  battery_warning: !input battery_warning
+  battery_threshold: !input battery_threshold
+  notification_quiet_time: !input notification_quiet_time
+  repeat_notification: !input repeat_notification
+
 trigger:
-  - platform: state
-    entity_id: !input trigger_sensor
-    to: 'unavailable'
-    for:
-      minutes: !input notify_interval
-condition: []
+  - platform: time_pattern
+    minutes: "/{{ notify_interval }}"
+  - platform: event
+    event_type: state_changed
+    enabled: "{{ battery_warning }}"
+    event_data:
+      entity_id: 
+        - sensor.*battery*
+        - binary_sensor.*battery*
+        - sensor.*_battery
+        - binary_sensor.*_battery
+        - sensor.*battery_level
+        - binary_sensor.*battery_level
+
+condition:
+  # Check if notification devices are configured
+  - condition: template
+    value_template: "{{ include_devices|length > 0 }}"
+  # Check if we're outside quiet hours
+  - condition: template
+    value_template: >
+      {% set current_time = now().strftime('%H:%M') %}
+      {% if quiet_start <= quiet_end %}
+        {{ not (current_time >= quiet_start and current_time < quiet_end) }}
+      {% else %}
+        {{ not (current_time >= quiet_start or current_time < quiet_end) }}
+      {% endif %}
+
 action:
-  - service: !input notification_service
+  - service: system_log.write
     data:
-      message: "The Zigbee2MQTT sensor {{ trigger.to_state.entity_id }} is offline!"
-      title: "Zigbee Sensor Offline"
+      message: "Multi-Integration Device Monitor triggered"
+      level: info
+
+  - choose:
+      # Handle periodic checks for offline devices
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.platform == 'time_pattern' }}"
+        sequence:
+          - variables:
+              offline_devices: >
+                {% set result=namespace(offline_devices=[]) %}
+                {% set integrations=['mqtt', 'zwave_js', 'zha'] %}
+                {% for integration in integrations %}
+                  {% for device in integration_entities(integration) | map('device_id') | sort | unique | list %}
+                    {% set device_info = namespace(
+                      name=device_attr(device,"name_by_user") or device_attr(device,"name"),
+                      offline_entities=[],
+                      total_entities=0
+                    ) %}
+                    {% for entity in device_entities(device) %}
+                      {% if entity.startswith(('switch','sensor','binary_sensor','light','climate','cover')) %}
+                        {% set device_info.total_entities = device_info.total_entities + 1 %}
+                        {% if "unavailable" in expand(entity)|string and entity not in excluded_devices %}
+                          {% set device_info.offline_entities = device_info.offline_entities + [entity] %}
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %}
+                    {% if device_info.name and device_info.offline_entities|length == device_info.total_entities and device_info.total_entities > 0 %}
+                      {% set result.offline_devices = result.offline_devices + [
+                        {
+                          'name': device_info.name,
+                          'integration': integration,
+                          'last_seen': device_attr(device, "last_seen")|default('unknown'),
+                          'entities': device_info.offline_entities|length
+                        }
+                      ] %}
+                    {% endif %}
+                  {% endfor %}
+                {% endfor %}
+                {{ result.offline_devices|sort(attribute='name')|unique|list }}
+
+          - service: system_log.write
+            data:
+              message: "Offline devices found: {{ offline_devices|map(attribute='name')|list }}"
+              level: info
+
+          # Send notifications for offline devices if any found
+          - condition: template
+            value_template: "{{ offline_devices|length > 0 }}"
+
+          - repeat:
+              for_each: "{{ offline_devices }}"
+              sequence:
+                - variables:
+                    device_name: "{{ this.name }}"
+                    offline_duration: >
+                      {% if this.last_seen != 'unknown' %}
+                        {% set duration = (now() - this.last_seen) %}
+                        {% set hours = (duration.total_seconds() / 3600)|int %}
+                        {% if hours > 24 %}
+                          {{ (hours / 24)|int }} days
+                        {% else %}
+                          {{ hours }} hours
+                        {% endif %}
+                      {% else %}
+                        Unknown
+                      {% endif %}
+
+                # Check if we should repeat notification based on last notification time
+                - condition: or
+                  conditions:
+                    - condition: template
+                      value_template: "{{ repeat_notification == 0 }}"
+                    - condition: template
+                      value_template: >
+                        {% set last_notified = state_attr('automation.zigbee2mqtt_offline_notification', 'last_notified_' ~ this.name) %}
+                        {% if last_notified %}
+                          {% set hours_since = ((now() - last_notified).total_seconds() / 3600)|int %}
+                          {{ hours_since >= repeat_notification }}
+                        {% else %}
+                          true
+                        {% endif %}
+
+                - repeat:
+                    for_each: "{{ include_devices }}"
+                    sequence:
+                      - service: "notify.mobile_app_{{ this.name | lower | replace(' ', '_') }}"
+                        data:
+                          message: >
+                            {{ custom_message | replace('{{device_name}}', device_name) | replace('{{offline_duration}}', offline_duration) }}
+                            Integration: {{ this.integration }}
+                            Affected entities: {{ this.entities }}
+                          title: "Device Offline"
+                          data:
+                            push:
+                              sound:
+                                name: "default"
+                                critical: 1
+                                volume: 1.0
+
+                # Store last notification time for this device
+                - service: automation.update
+                  data:
+                    entity_id: automation.zigbee2mqtt_offline_notification
+                    attributes:
+                      last_notified_{{ this.name }}: "{{ now() }}"
+
+      # Handle battery warnings
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.platform == 'event' and battery_warning }}"
+          - condition: template
+            value_template: >
+              {% set entity = trigger.event.data.entity_id %}
+              {% if 'battery_low' in entity %}
+                {{ states(entity) == 'on' }}
+              {% else %}
+                {% set battery = states(entity).state | int(0) %}
+                {{ battery <= battery_threshold and battery > 0 }}
+              {% endif %}
+        sequence:
+          - variables:
+              device_name: >
+                {% set entity = trigger.event.data.entity_id %}
+                {% set device_id = device_id(entity) %}
+                {{ device_attr(device_id, 'name_by_user') or device_attr(device_id, 'name') }}
+              battery_level: >
+                {% set entity = trigger.event.data.entity_id %}
+                {% if 'battery_low' in entity %}
+                  Low Battery
+                {% else %}
+                  {{ states(entity).state }}%
+                {% endif %}
+
+          - condition: template
+            value_template: "{{ device_name != None }}"
+
+          # Check last battery notification time
+          - condition: template
+            value_template: >
+              {% set last_notified = state_attr('automation.zigbee2mqtt_offline_notification', 'last_battery_' ~ device_name) %}
+              {% if last_notified %}
+                {% set hours_since = ((now() - last_notified).total_seconds() / 3600)|int %}
+                {{ hours_since >= 24 }}
+              {% else %}
+                true
+              {% endif %}
+
+          - repeat:
+              for_each: "{{ include_devices }}"
+              sequence:
+                - service: "notify.mobile_app_{{ this.name | lower | replace(' ', '_') }}"
+                  data:
+                    message: "Device {{ device_name }} has low battery: {{ battery_level }}"
+                    title: "Device Low Battery"
+                    data:
+                      push:
+                        sound:
+                          name: "default"
+                          critical: 1
+                          volume: 1.0
+
+          # Store last battery notification time for this device
+          - service: automation.update
+            data:
+              entity_id: automation.zigbee2mqtt_offline_notification
+              attributes:
+                last_battery_{{ device_name }}: "{{ now() }}"
