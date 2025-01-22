@@ -80,7 +80,7 @@ variables:
 
 trigger:
   - platform: time_pattern
-    minutes: "/{{ notify_interval }}"
+    minutes: "/{{ states('input_number.notify_interval') | int }}"
   - platform: event
     event_type: state_changed
     enabled: "{{ battery_warning }}"
